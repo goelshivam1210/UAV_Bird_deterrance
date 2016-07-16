@@ -1,5 +1,11 @@
 # UAV_Bird_deterrance
 
+In order to clone the project
+
+open an in terminal in the directory where you want to clone the project and type the following command:
+```
+ $ git clone https://github.com/goelshivam1210/UAV_Bird_deterrance.git
+```
   Object Detection (ViBe)
   -----
 
