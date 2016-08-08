@@ -1,0 +1,197 @@
+// backGroundSubtraction.cpp : Defines the entry point for the console application.
+
+
+
+#include "stdafx.h"
+
+
+#include <windows.h>
+#include <sstream>
+#include <opencv2/opencv.hpp>
+#include <fstream>
+#include <opencv2/imgproc/imgproc.hpp>
+#include "opencv2/highgui/highgui.hpp"
+#include <iostream>
+#include <string>
+#include <iomanip>
+#include <istream>
+#include <vector>
+
+using namespace cv;
+using namespace std;
+
+
+class imConcat
+{
+	private:
+	Mat imgA, imgB, imgC;
+
+	public:
+		Mat imageConcat(Mat A, Mat B, Mat C)
+		{
+			imgA = A;
+			imgB = B;
+			imgC = C;
+			cout << "three images";
+			Size szA = imgA.size();
+			Size szB = imgB.size();
+			Size szC = imgC.size();
+
+			Mat bigImg(szA.height, szA.width + szB.width + szC.width, CV_8UC3);
+			Mat leftIm(bigImg, Rect(0, 0, szA.width, szA.height));
+			imgA.copyTo(leftIm);
+			Mat midIm(bigImg, Rect(szA.width, 0, szB.width, szA.height));
+			imgB.copyTo(midIm);
+			Mat rightIm(bigImg, Rect(szA.width + szB.width, 0, szC.width, szA.height));
+			imgC.copyTo(rightIm);
+			return bigImg;
+		}
+
+		Mat imageConcat(Mat A, Mat B)
+		{
+			imgA = A;
+			imgB = B;
+			
+
+			Size szA = imgA.size();
+			Size szB = imgB.size();
+			
+			cout << "two images";
+
+			Mat bigImg(szA.height, szA.width + szB.width, CV_8UC3);
+			Mat leftIm(bigImg, Rect(0, 0, szA.width, szA.height));
+			imgA.copyTo(leftIm);
+			//Mat midIm(bigImg, Rect(szA.width, 0, szB.width, szA.height));
+			//imgB.copyTo(midIm);
+			Mat rightIm(bigImg, Rect(szA.width, 0, szB.width, szB.height));
+			imgB.copyTo(rightIm);
+			return bigImg;
+		}
+
+};
+
+//Mat imConcat(Mat imgA, Mat imgB, Mat imgC)
+//{
+//	//combines the images side by side
+//	//assumes the height of both the images be same	
+//	Size szA = imgA.size();
+//	Size szB = imgB.size();
+//	Size szC = imgC.size();
+//	
+//	Mat bigImg(szA.height, szA.width + szB.width + szC.width, CV_8UC3);
+//	Mat leftIm(bigImg, Rect(0, 0, szA.width, szA.height));
+//	imgA.copyTo(leftIm);
+//	Mat midIm(bigImg, Rect(szA.width, 0, szB.width, szA.height));
+//	imgB.copyTo(midIm);
+//	Mat rightIm(bigImg, Rect(szA.width+szB.width, 0, szC.width, szA.height));
+//	imgC.copyTo(rightIm);
+//	return(bigImg);
+//}
+
+
+int main(int argc, const char** argv)
+{
+	imConcat concat1, concat2;
+	string videoAddress;
+	//int frameCount = 1;	
+	if (argc > 1)
+	{
+		videoAddress = argv[1];
+		cout << videoAddress << endl;
+	}
+	else
+		videoAddress = "C:\\data_edited\\day5_cam2_evening\\GP040029.mp4";
+
+	VideoCapture vid(videoAddress);
+	if (!vid.isOpened())  // if not success, exit program
+	{
+		cout << "Cannot open the video file" << endl;
+		return -1;
+	}
+
+	VideoWriter vidW;
+	int fps = (int)round(vid.get(CV_CAP_PROP_FPS)); //get the frames per seconds of the video
+
+	//double duration = vid.get(CV_CAP_PROP_OPENNI_MAX_TIME_DURATION);
+	//double noOfFrames = vid.get(CV_CAP_PROP_FRAME_COUNT);
+	double wd = vid.get(CV_CAP_PROP_FRAME_WIDTH); //get the width of the video
+	double ht = vid.get(CV_CAP_PROP_FRAME_HEIGHT); //get the heightof the video
+
+
+	Ptr<BackgroundSubtractorMOG2> bgsubtractor = createBackgroundSubtractorMOG2();
+	bgsubtractor->setVarThreshold(12);
+	bgsubtractor->setHistory(10);
+	bgsubtractor->setNMixtures(5);
+	int key;
+
+	Size size(wd-2, ht / 2);
+	//vidW.open("C:\\data_edited\\detectedBirds2.avi", CV_FOURCC('X', 'V', 'I', 'D'), fps, Size(wd, ht));
+	
+	
+	for(int frameCount=1; frameCount<6600; frameCount++)	
+	{		
+		Mat frame, foreGround, backGround, out_frame;
+		vid >> frame;
+		cout << frameCount << endl;
+		if (!frame.empty())
+		{
+			//cout << "cannot read the frame";
+			//break;
+		//}
+		//frameCount++;
+		//if (frameCount > 90)
+		//{	
+			//key = waitKey(30);
+			bgsubtractor->apply(frame, foreGround, -1);
+			bgsubtractor->getBackgroundImage(backGround);
+
+			erode(foreGround, out_frame, Mat(), Point(-1, -1), 1);
+			dilate(out_frame, out_frame, Mat(), Point(-1, -1), 5);
+			
+			std::vector<std::vector<cv::Point> > contours, contours2;
+			findContours(out_frame, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
+			Rect bounding_rect;
+			vector<Mat> cropImage;
+			double areaMin = 50;
+			double areaMax = 5000;
+			std::vector<cv::Point2f> features, ffeatures;
+			int numDet = 0;
+			
+			vector<Mat> channels;
+			channels.push_back(foreGround);
+			channels.push_back(foreGround);
+			channels.push_back(foreGround);
+			merge(channels, foreGround);
+			Mat finalIm;
+			for (int i = 0; i < contours.size(); i++)
+			{
+				if ((contourArea(contours[i]) > areaMin) && (contourArea(contours[i]) < areaMax))
+				{
+					Rect rect = boundingRect(contours[i]);
+					rectangle(frame, Rect(rect.x - 2, rect.y - 2, rect.width + 5, rect.height + 3), Scalar(0, 0, 255), 1, 8, 0);
+					putText(frame, "(Main Frame) Frame Number: " + std::to_string(frameCount), cvPoint(wd / 2-550, ht - 25), FONT_HERSHEY_PLAIN, 4, CV_RGB(0, 0, 225), 4, CV_AA);
+					putText(foreGround, "(Moving Objects only) Fm No: " + std::to_string(frameCount), cvPoint(wd / 2-550, ht - 25), FONT_HERSHEY_PLAIN, 4, CV_RGB(225, 225, 225), 3, CV_AA);
+					putText(backGround, "(Background Image) Fm No: " + std::to_string(frameCount), cvPoint(wd / 2-550, ht - 25), FONT_HERSHEY_PLAIN, 3, CV_RGB(0, 0, 225), 3, CV_AA);
+					resize(frame, frame, Size(wd /3, ht / 2));
+					resize(foreGround, foreGround, Size(wd / 3, ht / 2));
+					resize(backGround, backGround, Size(wd / 3, ht / 2));
+					finalIm=concat1.imageConcat(frame, foreGround);
+					imshow("frame", finalIm);
+					//vidW << frame;
+					waitKey(1);
+				}
+			}				
+		}
+		//waitKey(30);
+		/*if (waitKey(10) == 27)
+		{
+			vidW.~VideoWriter();
+			return 0;
+		}*/
+	}
+	vidW.~VideoWriter();
+	return 0;
+}
+
+
+
