@@ -58,13 +58,14 @@ int main(int argc, char** argv) {
   srand(time(NULL));
 
   cv::VideoCapture decoder(argv[1]);
-  cv::Mat frame, output, processedOutput, finalIm, dilatedIm;
+  cv::Mat frame, output, processedOutput, finalIm, dilatedIm, erodedIm;
 
   //int32_t height = 
   //int32_t width = 
 
   int32_t height = decoder.get(CV_CAP_PROP_FRAME_HEIGHT);
   int32_t width  = decoder.get(CV_CAP_PROP_FRAME_WIDTH);
+  double a, b, c, difference;
 
   printf("%" PRId32"\n", height );
   printf("%" PRId32"\n", width );
@@ -72,9 +73,15 @@ int main(int argc, char** argv) {
   ViBe* vibe = NULL;
   cv::Mat segmentationMap(height, width, CV_8UC1);
   bool firstFrame = true;
+  int counter = 0;
 
+  a = getTickCount();
+  cout<<"a"<<a<<endl;
   while (decoder.read(frame)) {
-    //printf("%sFrame No\n",frame );
+    counter++;
+    //printf("%sFrame No\n",frame);
+    //cout<<"Frame Number"<<frame<<endl;
+    
     if (firstFrame) {
       /* Instantiation of ViBe. */
       vibe = new ViBe(height, width, frame.data);
@@ -84,45 +91,65 @@ int main(int argc, char** argv) {
     /* Segmentation and update. */
     vibe->segmentation(frame.data, segmentationMap.data);
     vibe->update(frame.data, segmentationMap.data);
-    medianBlur(segmentationMap, processedOutput, 3);
-    dilate(processedOutput,dilatedIm , 0, Point(-1, -1), 2, 1, 1);
+    medianBlur(segmentationMap, processedOutput, 5);
+    erode(processedOutput,erodedIm , 0, Point(-1, -1), 2, 1, 1);
+    dilate(erodedIm,dilatedIm , 0, Point(-1, -1), 2, 1, 1);
 
 
-    int largest_area = 0;
+    int num_of_countours = 0;
+    float largest_area = 0.0;
     int largest_contour_index=0;
     Rect bounding_rect;
     vector<vector<Point> > contours; // Vector for storing contour
     vector<Vec4i> hierarchy;
-    findContours( dilatedIm, contours, hierarchy,CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE );
+    findContours( processedOutput, contours, hierarchy,CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE );
     // iterate through each contour.
-    for( int i = 0; i< contours.size(); i++ )
+    
+    for( int i = 0; i< contours.size(); i++)
     {
+      
+
         //  Find the area of contour
-        double a=contourArea( contours[i],false); 
-        if(a>5){
-            largest_area=a;cout<<i<<" area  "<<a<<endl;
+        double a = contourArea(contours[i],false); 
+/*            num_of_countours++;
+            largest_area=a;
+            cout<<i<<" area  "<<a<<endl;*/
             // Store the index of largest contour
-            largest_contour_index=i;               
+            //largest_contour_index=i;             
             // Find the bounding rectangle for biggest contour
             bounding_rect=boundingRect(contours[i]);
-        }
+            rectangle(frame, bounding_rect,  Scalar(0,255,0),3, 8,0);
+        //cout <<"Number of Birds"<<num_of_countours<<endl;
+       
+        
     }
-    Scalar color( 255,255,255);  // color of the contour in the
+    
+
+   // Scalar color( 255,255,255);  // color of the contour in the
     //Draw the contour and rectangle
-    drawContours( frame, contours,largest_contour_index, color, CV_FILLED,8,hierarchy);
-    rectangle(frame, bounding_rect,  Scalar(0,0,255),2, 8,0);
-    namedWindow( "Display window", CV_WINDOW_AUTOSIZE );
-    imshow( "Display window", frame );    
+    //drawContours( frame, contours,largest_contour_index, color, CV_FILLED,8,hierarchy);
+    //rectangle(frame, bounding_rect,  Scalar(0,0,255),2, 8,0);
+    //namedWindow( "Display window", CV_WINDOW_AUTOSIZE );
+    imshow( "Display window", frame );
+
     //waitKey(0);                                         
     //return 0;
     
     imshow("ViBe", segmentationMap);
-    imshow("processedOutput", processedOutput);
+    //imshow("processedOutput", processedOutput);
+    //imshow("Erode", erodedIm);
+    //imshow("Dilate", dilatedIm);
 
     waitKey(1);                                         
     //return 0;
 
   } 
+   b = getTickCount();
+   difference = b-a;
+   c = (b-a)/getTickFrequency();
+   cout<<"Tick Frequency"<<c<<endl;
+   cout<<"Tick Difference"<<difference<<endl;
+   cout<<"Number of frames"<<counter<<endl;
 
 //medianBlur(segmentationMap, processedOutput, 3);
 
